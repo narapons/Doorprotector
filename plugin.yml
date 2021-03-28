@@ -1,6 +1,6 @@
 name: DoorProtector
 main: DoorProtector\main
-version: "2.1.0"
+version: "2.2.0"
 api: 3.0.0
 author: narapon
 description: ドア保護用プラグインです
