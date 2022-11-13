@@ -1,7 +1,7 @@
 name: DoorProtector
 main: DoorProtector\main
-version: "2.2.0"
-api: 3.0.0
+version: "3.0.0"
+api: 4.0.0
 author: narapon
 description: ドア保護用プラグインです
 commands:
@@ -9,11 +9,16 @@ commands:
   usage: /dp <subcommand>
   aliases: [d]
   description: DoorProtectionのコマンドです
+  permission: dp.command
  setdp:
   aliases: [setd]
   usage: /setdp <subcommand>
   description: DoorProtectionの設定用コマンドです
   permission: setdp.command
 permissions:
+ dp.command:
+  default: true
  setdp.command:
+  default: op
+ dp.permission:
   default: op
