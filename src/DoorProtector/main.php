@@ -2,19 +2,12 @@
 
 namespace DoorProtector;
 
-use pocketmine\Player;
 use pocketmine\Plugin\PluginBase;
-use pocketmine\Server;
 use pocketmine\event\Listener;
-use pocketmine\utils\TextFormat;//基本的なUSE
 
 use pocketmine\math\Vector3;//座標指定
 
-use pocketmine\level\Level;
-use pocketmine\block\Block;//level関連
-
-use pocketmine\block\BlockIds;
-use pocketmine\item\Item;//アイテム関連
+use pocketmine\player\Player;
 
 use pocketmine\event\player\PlayerInteractEvent;//プレイヤーのブロックタップイベント
 use pocketmine\event\block\BlockBreakEvent;
@@ -22,15 +15,14 @@ use pocketmine\event\block\BlockPlaceEvent;
 
 use pocketmine\utils\Config;//Config関連。
 
+use pocketmine\console\ConsoleCommandSender;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;//コマンド関連。
-use pocketmine\command\CommandExecuter;
-use pocketmine\command\ConsoleCommandSender;
 
 class main extends PluginBase implements Listener
 {
 
-    public function onEnable()
+    public function onEnable():void
     {
         if (!file_exists($this->getDataFolder())) {
             mkdir($this->getDataFolder(), 0755, true);
@@ -38,7 +30,6 @@ class main extends PluginBase implements Listener
 
         $this->getLogger()->notice("DoorProtectorをご利用いただき、ありがとうございます 作者 ogiwara 修正者 narapon");
         $this->getLogger()->notice("このプラグインの二次配布は禁止です");
-        $this->getLogger()->notice("不具合が発生した場合は、Twitterの@narapon16119まで");
         $this->getLogger()->notice("このプラグインはogiwara(CostlierRain464)さんが作成した物をnaraponがAPI3.0.0に対応させた物です。");
 
         $this->doordata = new Config($this->getDataFolder() . "doordata.yml", Config::YAML);
@@ -57,32 +48,30 @@ class main extends PluginBase implements Listener
     public function onBlockTap(PlayerInteractEvent $event)
     {
 
-
         if (
-            $event->getBlock()->getID() == BlockIds::OAK_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::SPRUCE_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::BIRCH_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::JUNGLE_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::ACACIA_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::DARK_OAK_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::IRON_DOOR_BLOCK) {
+            $event->getBlock()->getName() == "Oak Door" ||
+            $event->getBlock()->getName() == "Spruce Door" ||
+            $event->getBlock()->getName() == "Birch Door" ||
+            $event->getBlock()->getName() == "Jungle Door" ||
+            $event->getBlock()->getName() == "Acacia Door" ||
+            $event->getBlock()->getName() == "Dark Oak Door" ||
+            $event->getBlock()->getName() == "Iron Door") {
 
             $player = $event->getPlayer();
             $name = $player->getName();
-            $ip = $player->getAddress();//ipアドレス
+            $ip = $player->getPlayerInfo()->getUuid();//UUIDアドレス
             $block = $event->getBlock();
-            $doorx = $block->x;
-            $doory = $block->y;
+            $doorx = $block->getPosition()->x;
+            $doory = $block->getPosition()->y;
             $doorydecre = $doory;
             --$doorydecre;
             $dooryincre = $doory;
             ++$dooryincre;
-            $doorz = $block->z;
-            $doorworld = str_replace(" ", "%", $block->getLevel()->getName());
+            $doorz = $block->getPosition()->z;
+            $doorworld = str_replace(" ", "%", $block->getPosition()->getWorld()->getFolderName());
             $doorplace = $doorx . "," . $doory . "," . $doorz . "," . $doorworld;
             $doorplace2 = $doorx . "," . $doorydecre . "," . $doorz . "," . $doorworld;
             $doorplace3 = $doorx . "," . $dooryincre . "," . $doorz . "," . $doorworld;
-
 
             if ($this->doordata->exists($doorplace2)) {
                 $doorplace = $doorplace2;                                                //<------------ここで、上のブロックを触った場合は下にある確認する
@@ -92,7 +81,7 @@ class main extends PluginBase implements Listener
                 if ($this->doordata->exists($doorplace)) {
                     $a = $this->doordata->get($doorplace);
                     if ($a["state"] != "public") {
-                        if ($player->isOp()) {
+                        if ($player->hasPermission("dp.permission")) {
                             $player->sendPopup("§6認証されました[OP]");
                         } else {
                             $master = explode(',', $this->getowner($doorplace));
@@ -102,7 +91,7 @@ class main extends PluginBase implements Listener
                                 if ($this->isinviter($doorplace, $name)) {
                                     $player->sendPopup("§d認証されました[招待者]");
                                 } else {
-                                    $event->setCancelled();
+                                    $event->cancel();
                                     if (!$this->history->exists($name)) {
                                         $this->history->set($name, 1);
                                         $this->history->save();
@@ -141,11 +130,11 @@ class main extends PluginBase implements Listener
                             $player->sendMessage("座標 : " . $doorplace);
                             $player->sendMessage("保護の種類 : " . $this->getstate($doorplace));
                             $player->sendMessage("オーナーの情報 : " . $this->getowner($doorplace));
-                            $event->setCancelled();
+                            $event->cancel();
                             unset($this->action[$name]);
                         } else {
                             $player->sendMessage("§e>>ⓘこの扉は誰も保護していないようです");
-                            $event->setCancelled();
+                            $event->cancel();
                             unset($this->action[$name]);
                         }
                         break;
@@ -153,7 +142,7 @@ class main extends PluginBase implements Listener
                     case "invite":
                         $a = $this->doordata->get($doorplace);
                         if ($this->doordata->exists($doorplace)) {
-                            if ($player->isOp()) {
+                            if ($player->hasPermission("dp.permission")) {
                                 if (!isset($a["inviter1"])) {
                                     $this->doordata->set($doorplace,                //ここをテストしました
                                         [
@@ -163,7 +152,7 @@ class main extends PluginBase implements Listener
                                         ]);
                                     $this->doordata->save();
                                     $player->sendMessage("§a>>ⓘ" . $this->action[$name][1] . "が追加されました");
-                                    $event->setCancelled();
+                                    $event->cancel();
                                     unset($this->action[$name]);
                                     break;
                                 }
@@ -178,7 +167,7 @@ class main extends PluginBase implements Listener
                                         ]);
                                     $this->doordata->save();
                                     $player->sendMessage("§a>>ⓘ" . $this->action[$name][1] . "が追加されました");
-                                    $event->setCancelled();
+                                    $event->cancel();
                                     unset($this->action[$name]);
                                     break;
                                 }
@@ -194,7 +183,7 @@ class main extends PluginBase implements Listener
                                         ]);
                                     $this->doordata->save();
                                     $player->sendMessage("§a>>ⓘ" . $this->action[$name][1] . "が追加されました");
-                                    $event->setCancelled();
+                                    $event->cancel();
                                     unset($this->action[$name]);
                                     break;
                                 }
@@ -211,7 +200,7 @@ class main extends PluginBase implements Listener
                                         ]);
                                     $this->doordata->save();
                                     $player->sendMessage("§a>>ⓘ" . $this->action[$name][1] . "が追加されました");
-                                    $event->setCancelled();
+                                    $event->cancel();
                                     unset($this->action[$name]);
                                     break;
                                 }
@@ -229,14 +218,14 @@ class main extends PluginBase implements Listener
                                         ]);
                                     $this->doordata->save();
                                     $player->sendMessage("§a>>ⓘ" . $this->action[$name][1] . "が追加されました");
-                                    $event->setCancelled();
+                                    $event->cancel();
                                     unset($this->action[$name]);
                                     break;
                                 }
 
                                 if (isset($a["inviter5"])) {
                                     $player->sendMessage("§e>>ⓘこれ以上招待することはできません");
-                                    $event->setCancelled();
+                                    $event->cancel();
                                     unset($this->action[$name]);
                                     break;
                                 }
@@ -253,7 +242,7 @@ class main extends PluginBase implements Listener
                                             ]);
                                         $this->doordata->save();
                                         $player->sendMessage("§a>>ⓘ" . $this->action[$name][1] . "が追加されました");
-                                        $event->setCancelled();
+                                        $event->cancel();
                                         unset($this->action[$name]);
                                         break;
                                     }
@@ -268,7 +257,7 @@ class main extends PluginBase implements Listener
                                             ]);
                                         $this->doordata->save();
                                         $player->sendMessage("§a>>ⓘ" . $this->action[$name][1] . "が追加されました");
-                                        $event->setCancelled();
+                                        $event->cancel();
                                         unset($this->action[$name]);
                                         break;
                                     }
@@ -284,7 +273,7 @@ class main extends PluginBase implements Listener
                                             ]);
                                         $this->doordata->save();
                                         $player->sendMessage("§a>>ⓘ" . $this->action[$name][1] . "が追加されました");
-                                        $event->setCancelled();
+                                        $event->cancel();
                                         unset($this->action[$name]);
                                         break;
                                     }
@@ -301,7 +290,7 @@ class main extends PluginBase implements Listener
                                             ]);
                                         $this->doordata->save();
                                         $player->sendMessage("§a>>ⓘ" . $this->action[$name][1] . "が追加されました");
-                                        $event->setCancelled();
+                                        $event->cancel();
                                         unset($this->action[$name]);
                                         break;
                                     }
@@ -319,45 +308,45 @@ class main extends PluginBase implements Listener
                                             ]);
                                         $this->doordata->save();
                                         $player->sendMessage("§a>>ⓘ" . $this->action[$name][1] . "が追加されました");
-                                        $event->setCancelled();
+                                        $event->cancel();
                                         unset($this->action[$name]);
                                         break;
                                     }
 
                                     if (isset($a["inviter5"])) {
                                         $player->sendMessage("§e>>ⓘこれ以上招待することはできません");
-                                        $event->setCancelled();
+                                        $event->cancel();
                                         unset($this->action[$name]);
                                         break;
                                     }
                                 } else {
                                     $player->sendMessage("§c>>ⓘ貴方はこのドアのオーナーではありません");
-                                    $event->setCancelled();
+                                    $event->cancel();
                                     unset($this->action[$name]);
                                 }
                             }
                         } else {
                             $player->sendMessage("§e>>ⓘこの扉は誰も保護していないようです");
-                            $event->setCancelled();
+                            $event->cancel();
                             unset($this->action[$name]);
                         }
                         break;
 
                     case "public":
                         if ($this->doordata->exists($doorplace)) {
-                            if ($player->isOp()) {
+                            if ($player->hasPermission("dp.permission")) {
                                 $vector = new Vector3($doorx, $doorydecre, $doorz);
-                                $level = $player->getLevel();
+                                $level = $player->getWorld();
                                 $block = $level->getBlock($vector);
-                                $id = $block->getID();
+                                $block_name = $block->getName();
                                 if (
-                                    $id == BlockIds::OAK_DOOR_BLOCK ||
-                                    $id == BlockIds::SPRUCE_DOOR_BLOCK ||
-                                    $id == BlockIds::BIRCH_DOOR_BLOCK ||
-                                    $id == BlockIds::JUNGLE_DOOR_BLOCK ||
-                                    $id == BlockIds::ACACIA_DOOR_BLOCK ||
-                                    $id == BlockIds::DARK_OAK_DOOR_BLOCK ||
-                                    $id == BlockIds::IRON_DOOR_BLOCK) {
+                                    $block_name == "Oak Door" ||
+                                    $block_name == "Spruce Door" ||
+                                    $block_name == "Birch Door" ||
+                                    $block_name == "Jungle Door" ||
+                                    $block_name == "Acacia Door" ||
+                                    $block_name == "Dark Oak Door" ||
+                                    $block_name == "Iron Door") {
                                     $doorplace = $doorplace2;
                                 }
                                 $this->doordata->set($doorplace,
@@ -368,23 +357,23 @@ class main extends PluginBase implements Listener
                                     ]);
                                 $this->doordata->save();
                                 $player->sendMessage("§a>>ⓘこのドアを公共化しました");
-                                $event->setCancelled();
+                                $event->cancel();
                                 unset($this->action[$name]);
                             } else {
                                 $master = explode(',', $this->getowner($doorplace));
                                 if ($master[0] == $ip || $master[1] == $name) {
                                     $vector = new Vector3($doorx, $doorydecre, $doorz);
-                                    $level = $player->getLevel();
+                                    $level = $player->getWorld();
                                     $block = $level->getBlock($vector);
-                                    $id = $block->getID();
+                                    $block_name = $block->getName();
                                     if (
-                                        $id == BlockIds::OAK_DOOR_BLOCK ||
-                                        $id == BlockIds::SPRUCE_DOOR_BLOCK ||
-                                        $id == BlockIds::BIRCH_DOOR_BLOCK ||
-                                        $id == BlockIds::JUNGLE_DOOR_BLOCK ||
-                                        $id == BlockIds::ACACIA_DOOR_BLOCK ||
-                                        $id == BlockIds::DARK_OAK_DOOR_BLOCK ||
-                                        $id == BlockIds::IRON_DOOR_BLOCK) {
+                                        $block_name == "Oak Door" ||
+                                        $block_name == "Spruce Door" ||
+                                        $block_name == "Birch Door" ||
+                                        $block_name == "Jungle Door" ||
+                                        $block_name == "Acacia Door" ||
+                                        $block_name == "Dark Oak Door" ||
+                                        $block_name == "Iron Door") {
                                         $doorplace = $doorplace2;
                                     }
                                     $this->doordata->set($doorplace,
@@ -395,11 +384,11 @@ class main extends PluginBase implements Listener
                                         ]);
                                     $this->doordata->save();
                                     $player->sendMessage("§a>>ⓘこのドアを公共化しました");
-                                    $event->setCancelled();
+                                    $event->cancel();
                                     unset($this->action[$name]);
                                 } else {
                                     $player->sendMessage("§e>>ⓘこのドアは既に保護済みです");
-                                    $event->setCancelled();
+                                    $event->cancel();
                                     unset($this->action[$name]);
                                 }
                             }
@@ -412,7 +401,7 @@ class main extends PluginBase implements Listener
                                 ]);
                             $this->doordata->save();
                             $player->sendMessage("§a>>ⓘこのドアを公共化しました");
-                            $event->setCancelled();
+                            $event->cancel();
                             unset($this->action[$name]);
                         }
                         break;
@@ -420,21 +409,21 @@ class main extends PluginBase implements Listener
                     case "protect":
                         if ($this->doordata->exists($doorplace)) {
                             $player->sendMessage("§e>>ⓘこのドアは既に保護済みです");
-                            $event->setCancelled();
+                            $event->cancel();
                             unset($this->action[$name]);
                         } else {
                             $vector = new Vector3($doorx, $doorydecre, $doorz);
-                            $level = $player->getLevel();
+                            $level = $player->getWorld();
                             $block = $level->getBlock($vector);
-                            $id = $block->getID();
+                            $block_name = $block->getName();
                             if (
-                                $id == BlockIds::OAK_DOOR_BLOCK ||
-                                $id == BlockIds::SPRUCE_DOOR_BLOCK ||
-                                $id == BlockIds::BIRCH_DOOR_BLOCK ||
-                                $id == BlockIds::JUNGLE_DOOR_BLOCK ||
-                                $id == BlockIds::ACACIA_DOOR_BLOCK ||
-                                $id == BlockIds::DARK_OAK_DOOR_BLOCK ||
-                                $id == BlockIds::IRON_DOOR_BLOCK) {
+                                $block_name == "Oak Door" ||
+                                $block_name == "Spruce Door" ||
+                                $block_name == "Birch Door" ||
+                                $block_name == "Jungle Door" ||
+                                $block_name == "Acacia Door" ||
+                                $block_name == "Dark Oak Door" ||
+                                $block_name == "Iron Door") {
                                 $doorplace = $doorplace2;
                             }
                             $this->doordata->set($doorplace,
@@ -444,7 +433,7 @@ class main extends PluginBase implements Listener
                                 ]);
                             $this->doordata->save();
                             $player->sendMessage("§a>>ⓘこのドアを保護しました");
-                            $event->setCancelled();
+                            $event->cancel();
                             unset($this->action[$name]);
                         }
 
@@ -458,11 +447,10 @@ class main extends PluginBase implements Listener
         switch ($command->getName()) {//コマンド名で条件分岐
             case "dp":
                 if ($sender instanceof Player) {
-                    $player = $sender->getPlayer();
-                    $name = $player->getName();
+                    $name = $sender->getName();
                     if (!isset($args[0])) {
                         $penalty = $this->setting->get("penalty");
-                        $sender->sendMessage("---[DoorProtector サブコマンド]------------------");
+                        $sender->sendMessage("---[CheckName サブコマンド]------------------");
                         $sender->sendMessage("/dp：");
                         $sender->sendMessage("| ⊢<info/i>で、保護されたドアの情報を確認します");
                         $sender->sendMessage("| ⊢<add/invite><名前>で、保護されたドアにアクセスできる人を追加します");
@@ -532,14 +520,13 @@ class main extends PluginBase implements Listener
                 } else {
                     $sender->sendMessage("§e>>ⓘこのコマンドはプレイヤーのみ実行できます");
                 }
-                return true;
                 break;
 
             case "setdp":
                 if (!isset($args[0])) {
                     $penalty = $this->setting->get("penalty");
                     $notice = $this->setting->get("protectnotice");
-                    $sender->sendMessage("---[DoorProtector 設定]------------------");
+                    $sender->sendMessage("---[CheckName 設定]------------------");
                     $sender->sendMessage("/setdp：");
                     $sender->sendMessage("| ⊢<penalty><0 or 1 or 2 or 3>で、ペナルティーを設定 ");
                     $sender->sendMessage("|| 0 : 警告のみ 1 : アラーム 2 : kick & アラーム 3 : otu & アラーム & runa");
@@ -620,9 +607,9 @@ class main extends PluginBase implements Listener
                             break;
                     }
                 }
-                return true;
                 break;
         }
+        return false;
     }
 
     public function onBreak(BlockBreakEvent $event)
@@ -630,18 +617,18 @@ class main extends PluginBase implements Listener
 
         $player = $event->getPlayer();
         $name = $player->getName();
-        $ip = $player->getAddress();
+        $ip = $player->getPlayerInfo()->getUuid();
         $block = $event->getBlock();
-        $breakx = (int)$block->x;
-        $breaky = (int)$block->y;
+        $breakx = (int)$block->getPosition()->x;
+        $breaky = (int)$block->getPosition()->y;
         $breaky2 = $breaky;
         ++$breaky2;
-        $breakz = (int)$block->z;
-        $breakworld = str_replace(" ", "%", $block->getLevel()->getName());
+        $breakz = (int)$block->getPosition()->z;
+        $breakworld = str_replace(" ", "%", $block->getPosition()->getWorld()->getFolderName());
         $breakplace2 = $breakx . "," . $breaky2 . "," . $breakz . "," . $breakworld;
 
         if ($this->doordata->exists($breakplace2)) {
-            if ($player->isOp()) {
+            if ($player->hasPermission("dp.permission")) {
                 $player->sendMessage("§6>>ⓘドアは撤去され、保護が解除されました");
                 $this->doordata->remove($breakplace2);
                 $this->doordata->save();
@@ -654,31 +641,31 @@ class main extends PluginBase implements Listener
                 } else {
                     $player->sendMessage("§6>>ⓘ貴方はこの家のオーナーではありません!");
                     $this->getServer()->broadcastMessage("§c⚠" . $name . "が、§6" . $master[1] . "§cの家のドアを壊そうとしました！");
-                    $this->batu($player, $doorplace);
-                    $event->setCancelled();
+                    $this->batu($player, $breakplace2);
+                    $event->cancel();
                 }
             }
         }
 
         if (
-            $event->getBlock()->getID() == BlockIds::OAK_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::SPRUCE_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::BIRCH_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::JUNGLE_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::ACACIA_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::DARK_OAK_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::IRON_DOOR_BLOCK) {
+            $event->getBlock()->getName() == "Oak Door" ||
+            $event->getBlock()->getName() == "Spruce Door" ||
+            $event->getBlock()->getName() == "Birch Door" ||
+            $event->getBlock()->getName() == "Jungle Door" ||
+            $event->getBlock()->getName() == "Acacia Door" ||
+            $event->getBlock()->getName() == "Dark Oak Door" ||
+            $event->getBlock()->getName() == "Iron Door") {
 
             $player = $event->getPlayer();
             $name = $player->getName();
-            $ip = $player->getAddress();//ipアドレス
+            $ip = $player->getPlayerInfo()->getUuid();//UUIDアドレス
             $block = $event->getBlock();
-            $doorx = (int)$block->x;
-            $doory = (int)$block->y;
+            $doorx = (int)$block->getPosition()->x;
+            $doory = (int)$block->getPosition()->y;
             $doory2 = $doory;
             --$doory2;
-            $doorz = (int)$block->z;
-            $doorworld = str_replace(" ", "%", $block->getLevel()->getName());
+            $doorz = (int)$block->getPosition()->z;
+            $doorworld = str_replace(" ", "%", $block->getPosition()->getWorld()->getFolderName());
             $doorplace = $doorx . "," . $doory . "," . $doorz . "," . $doorworld;
             $doorplace2 = $doorx . "," . $doory2 . "," . $doorz . "," . $doorworld;
 
@@ -687,7 +674,7 @@ class main extends PluginBase implements Listener
             }
 
             if ($this->doordata->exists($doorplace)) {
-                if ($player->isOp()) {
+                if ($player->hasPermission("dp.permission")) {
                     $player->sendMessage("§6>>ⓘドアは撤去され、保護が解除されました");
                     $this->doordata->remove($doorplace);
                     $this->doordata->save();
@@ -701,7 +688,7 @@ class main extends PluginBase implements Listener
                         $player->sendMessage("§c>>ⓘ貴方はこの家のオーナーではありません!");
                         $this->getServer()->broadcastMessage("§c⚠" . $name . "が、§6" . $master[1] . "§cの家のドアを壊そうとしました！");
                         $this->batu($player, $doorplace);
-                        $event->setCancelled();
+                        $event->cancel();
                     }
                 }
             }
@@ -712,24 +699,24 @@ class main extends PluginBase implements Listener
     {
 
         if (
-            $event->getBlock()->getID() == BlockIds::OAK_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::SPRUCE_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::BIRCH_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::JUNGLE_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::ACACIA_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::DARK_OAK_DOOR_BLOCK ||
-            $event->getBlock()->getID() == BlockIds::IRON_DOOR_BLOCK) {
+            $event->getBlock()->getName() == "Oak Door" ||
+            $event->getBlock()->getName() == "Spruce Door" ||
+            $event->getBlock()->getName() == "Birch Door" ||
+            $event->getBlock()->getName() == "Jungle Door" ||
+            $event->getBlock()->getName() == "Acacia Door" ||
+            $event->getBlock()->getName() == "Dark Oak Door" ||
+            $event->getBlock()->getName() == "Iron Door") {
 
             $player = $event->getPlayer();
             $name = $player->getName();
-            $ip = $player->getAddress();//ipアドレス
+            $ip = $player->getPlayerInfo()->getUuid();//UUIDアドレス
             $block = $event->getBlock();
-            $doorx = (int)$block->x;
-            $doory = (int)$block->y;
+            $doorx = (int)$block->getPosition()->x;
+            $doory = (int)$block->getPosition()->y;
             $dooryincre = $doory;
             ++$dooryincre;
-            $doorz = (int)$block->z;
-            $doorworld = str_replace(" ", "%", $block->getLevel()->getName());
+            $doorz = (int)$block->getPosition()->z;
+            $doorworld = str_replace(" ", "%", $block->getPosition()->getWorld()->getFolderName());
             $doorplace = $doorx . "," . $doory . "," . $doorz . "," . $doorworld;
 
             switch ($this->setting->get("protectnotice")) {
@@ -809,9 +796,9 @@ class main extends PluginBase implements Listener
                 if (strpos($player->getDisplayName(), "§c[罰]") === false) {
                     $name = $player->getName();
                     $this->getServer()->broadcastMessage("§c【DP】" . $name . "が、§6" . $master[1] . "§cの家に侵入しました!");
-                    $this->getServer()->dispatchCommand(new ConsoleCommandSender(), "otu " . $name);
-                    $this->getServer()->dispatchCommand(new ConsoleCommandSender(), "x " . $name);
-                    $this->getServer()->dispatchCommand(new ConsoleCommandSender(), "runa " . $name);
+                    $this->getServer()->dispatchCommand(new ConsoleCommandSender($this->getServer(), $this->getServer()->getLanguage()), "otu " . $name);
+                    $this->getServer()->dispatchCommand(new ConsoleCommandSender($this->getServer(), $this->getServer()->getLanguage()), "x " . $name);
+                    $this->getServer()->dispatchCommand(new ConsoleCommandSender($this->getServer(), $this->getServer()->getLanguage()), "runa " . $name);
                 }
                 break;
         }
